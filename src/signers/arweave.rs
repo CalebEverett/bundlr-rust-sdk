@@ -38,16 +38,16 @@ impl Signer for ArweaveSigner {
         hasher.update(&message);
         let hashed = hasher.finalize();
 
-        let rng = thread_rng();
+        let mut rng = thread_rng();
         let padding = PaddingScheme::PSS {
-            salt_rng: Box::new(rng),
+            // salt_rng: Box::new(rng),
             digest: Box::new(sha2::Sha256::new()),
             salt_len: None,
         };
 
         let signature = self
             .priv_key
-            .sign(padding, &hashed)
+            .sign_with_rng(&mut rng, padding, &hashed)
             .map_err(|e| BundlrError::SigningError(e.to_string()))?;
 
         Ok(signature.into())
@@ -71,9 +71,7 @@ impl Verifier for ArweaveSigner {
         hasher.update(&message);
         let hashed = &hasher.finalize();
 
-        let rng = thread_rng();
         let padding = PaddingScheme::PSS {
-            salt_rng: Box::new(rng),
             digest: Box::new(sha2::Sha256::new()),
             salt_len: None,
         };
