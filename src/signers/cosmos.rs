@@ -1,4 +1,4 @@
-use crate::{error::BundlrError, Signer, Verifier};
+use crate::{error::BundlrError, index::SignerMap, Signer, Verifier};
 use bytes::Bytes;
 use secp256k1::{
     constants::{COMPACT_SIGNATURE_SIZE, PUBLIC_KEY_SIZE},
@@ -12,13 +12,20 @@ pub struct CosmosSigner {
 }
 
 impl CosmosSigner {
-    pub fn new(sec_key: SecretKey) -> CosmosSigner {
+    pub fn new(sec_key: SecretKey) -> Result<CosmosSigner, BundlrError> {
         let secp = Secp256k1::new();
         let pub_key = PublicKey::from_secret_key(&secp, &sec_key);
-        CosmosSigner { sec_key, pub_key }
+        if pub_key.serialize().len() == PUBLIC_KEY_SIZE {
+            Ok(Self { sec_key, pub_key })
+        } else {
+            Err(BundlrError::InvalidKey(format!(
+                "Public key length should be of {}",
+                PUB_LENGTH
+            )))
+        }
     }
 
-    pub fn from_base58(s: &str) -> Self {
+    pub fn from_base58(s: &str) -> Result<Self, BundlrError> {
         let k = bs58::decode(s).into_vec().expect("Invalid base58 encoding");
         let key: &[u8; 64] = k
             .as_slice()
@@ -38,13 +45,15 @@ impl CosmosSigner {
     }
 }
 
-impl Signer for CosmosSigner {
-    const SIG_TYPE: u16 = 4;
-    const SIG_LENGTH: u16 = COMPACT_SIGNATURE_SIZE as u16;
-    const PUB_LENGTH: u16 = PUBLIC_KEY_SIZE as u16;
+const SIG_TYPE: SignerMap = SignerMap::Cosmos;
+const SIG_LENGTH: u16 = COMPACT_SIGNATURE_SIZE as u16;
+const PUB_LENGTH: u16 = PUBLIC_KEY_SIZE as u16;
 
+impl Signer for CosmosSigner {
     fn pub_key(&self) -> bytes::Bytes {
-        Bytes::copy_from_slice(&self.pub_key.serialize_uncompressed())
+        let pub_key = &self.pub_key.serialize();
+        assert!(pub_key.len() == PUBLIC_KEY_SIZE);
+        Bytes::copy_from_slice(pub_key)
     }
 
     fn sign(&self, message: bytes::Bytes) -> Result<bytes::Bytes, crate::error::BundlrError> {
@@ -54,6 +63,16 @@ impl Signer for CosmosSigner {
             .serialize_compact();
 
         Ok(Bytes::copy_from_slice(&signature))
+    }
+
+    fn sig_type(&self) -> SignerMap {
+        SIG_TYPE
+    }
+    fn get_sig_length(&self) -> u16 {
+        SIG_LENGTH
+    }
+    fn get_pub_length(&self) -> u16 {
+        PUB_LENGTH
     }
 }
 
@@ -65,18 +84,10 @@ impl Verifier for CosmosSigner {
     ) -> Result<bool, crate::error::BundlrError> {
         let msg = secp256k1::Message::from_slice(&CosmosSigner::sha256_digest(&message))
             .unwrap_or_else(|_| panic!("Cosmos messages should have 32 bytes"));
-        let sig = secp256k1::ecdsa::Signature::from_compact(&signature).unwrap_or_else(|_| {
-            panic!(
-                "Cosmos signatures should have {} bytes",
-                CosmosSigner::SIG_LENGTH
-            )
-        });
-        let pk = secp256k1::PublicKey::from_slice(&public_key).unwrap_or_else(|_| {
-            panic!(
-                "Cosmos public keys should have {} bytes",
-                CosmosSigner::PUB_LENGTH
-            )
-        });
+        let sig = secp256k1::ecdsa::Signature::from_compact(&signature)
+            .unwrap_or_else(|_| panic!("Cosmos signatures should have {} bytes", SIG_LENGTH));
+        let pk = secp256k1::PublicKey::from_slice(&public_key)
+            .unwrap_or_else(|_| panic!("Cosmos public keys should have {} bytes", PUB_LENGTH));
 
         secp256k1::Secp256k1::verification_only()
             .verify_ecdsa(&msg, &sig, &pk)
@@ -107,13 +118,13 @@ mod tests {
         let msg = Bytes::from("Hello, Bundlr!");
 
         let secret_key = SecretKey::from_slice(b"00000000000000000000000000000000").unwrap();
-        let signer = CosmosSigner::new(secret_key);
+        let signer = CosmosSigner::new(secret_key).unwrap();
         let sig = signer.sign(msg.clone()).unwrap();
         let pub_key = signer.pub_key();
         assert!(CosmosSigner::verify(pub_key, msg.clone(), sig).unwrap());
 
         let base58_secret_key = "28PmkjeZqLyfRQogb3FU4E1vJh68dXpbojvS2tcPwezZmVQp8zs8ebGmYg1hNRcjX4DkUALf3SkZtytGWPG3vYhs";
-        let signer = CosmosSigner::from_base58(base58_secret_key);
+        let signer = CosmosSigner::from_base58(base58_secret_key).unwrap();
         let sig = signer.sign(msg.clone()).unwrap();
         let pub_key = signer.pub_key();
         assert!(CosmosSigner::verify(pub_key, msg, sig).unwrap());

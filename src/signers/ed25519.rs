@@ -1,4 +1,5 @@
 use crate::error::BundlrError;
+use crate::index::SignerMap;
 use crate::Signer as SignerTrait;
 use crate::Verifier as VerifierTrait;
 
@@ -9,6 +10,7 @@ pub struct Ed25519Signer {
     keypair: Keypair,
 }
 
+//TODO: add validation for secret keys
 impl Ed25519Signer {
     pub fn new(keypair: Keypair) -> Ed25519Signer {
         Ed25519Signer { keypair }
@@ -27,11 +29,11 @@ impl Ed25519Signer {
     }
 }
 
-impl SignerTrait for Ed25519Signer {
-    const SIG_TYPE: u16 = 2;
-    const SIG_LENGTH: u16 = SIGNATURE_LENGTH as u16;
-    const PUB_LENGTH: u16 = PUBLIC_KEY_LENGTH as u16;
+const SIG_TYPE: SignerMap = SignerMap::Ed25519;
+const SIG_LENGTH: u16 = SIGNATURE_LENGTH as u16;
+const PUB_LENGTH: u16 = PUBLIC_KEY_LENGTH as u16;
 
+impl SignerTrait for Ed25519Signer {
     fn sign(&self, message: bytes::Bytes) -> Result<bytes::Bytes, crate::error::BundlrError> {
         Ok(Bytes::copy_from_slice(
             &self.keypair.sign(&message).to_bytes(),
@@ -41,6 +43,16 @@ impl SignerTrait for Ed25519Signer {
     fn pub_key(&self) -> bytes::Bytes {
         Bytes::copy_from_slice(&self.keypair.public.to_bytes())
     }
+
+    fn sig_type(&self) -> SignerMap {
+        SIG_TYPE
+    }
+    fn get_sig_length(&self) -> u16 {
+        SIG_LENGTH
+    }
+    fn get_pub_length(&self) -> u16 {
+        PUB_LENGTH
+    }
 }
 
 impl VerifierTrait for Ed25519Signer {
@@ -49,12 +61,6 @@ impl VerifierTrait for Ed25519Signer {
         message: Bytes,
         signature: Bytes,
     ) -> Result<bool, crate::error::BundlrError> {
-        println!(
-            "pk:{:?}\nmsg:{:?}\nsig:{:?}",
-            &pk[..],
-            &message[..],
-            &signature[..]
-        );
         let public_key = ed25519_dalek::PublicKey::from_bytes(&pk).unwrap_or_else(|_| {
             panic!(
                 "ED25519 public keys must be {} bytes long",
@@ -88,6 +94,7 @@ mod tests {
         let signer = Ed25519Signer::from_base58(base58_secret_key);
         let sig = signer.sign(msg.clone()).unwrap();
         let pub_key = signer.pub_key();
+        println!("{:?}", pub_key.to_vec());
         assert!(Ed25519Signer::verify(pub_key, msg.clone(), sig).unwrap());
 
         let keypair = Keypair::from_bytes(&[
