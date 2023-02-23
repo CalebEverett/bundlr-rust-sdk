@@ -3,14 +3,15 @@ use crate::Signer as SignerTrait;
 use crate::Verifier as VerifierTrait;
 
 use bytes::Bytes;
-use ed25519_dalek::{Keypair, Signer, Verifier, PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH};
+// use ed25519_dalek::ed25519::signature::Keypair;
+use ed25519_dalek::{Signer, SigningKey, Verifier, PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH};
 
 pub struct Ed25519Signer {
-    keypair: Keypair,
+    keypair: SigningKey,
 }
 
 impl Ed25519Signer {
-    pub fn new(keypair: Keypair) -> Ed25519Signer {
+    pub fn new(keypair: SigningKey) -> Ed25519Signer {
         Ed25519Signer { keypair }
     }
 
@@ -22,7 +23,7 @@ impl Ed25519Signer {
             .expect("Couldn't convert base58 key to bytes");
 
         Self {
-            keypair: Keypair::from_bytes(key).unwrap(),
+            keypair: SigningKey::from_keypair_bytes(key).unwrap(),
         }
     }
 }
@@ -39,7 +40,7 @@ impl SignerTrait for Ed25519Signer {
     }
 
     fn pub_key(&self) -> bytes::Bytes {
-        Bytes::copy_from_slice(&self.keypair.public.to_bytes())
+        Bytes::copy_from_slice(&self.keypair.verifying_key().to_bytes())
     }
 }
 
@@ -55,18 +56,29 @@ impl VerifierTrait for Ed25519Signer {
             &message[..],
             &signature[..]
         );
-        let public_key = ed25519_dalek::PublicKey::from_bytes(&pk).unwrap_or_else(|_| {
+        let mut pk_bytes: [u8; 32] = [0; 32];
+        pk.into_iter()
+            .enumerate()
+            .for_each(|(i, b)| pk_bytes[i] = b);
+        let public_key = ed25519_dalek::VerifyingKey::from_bytes(&pk_bytes).unwrap_or_else(|_| {
             panic!(
                 "ED25519 public keys must be {} bytes long",
                 ed25519_dalek::PUBLIC_KEY_LENGTH
             )
         });
-        let sig = ed25519_dalek::Signature::from_bytes(&signature).unwrap_or_else(|_| {
+
+        let mut sig_bytes: [u8; 64] = [0; 64];
+        if signature.len() != ed25519_dalek::SIGNATURE_LENGTH {
             panic!(
-                "ED22519 signatures keys must be {} bytes long",
+                "ED25519 signature must be {} bytes long",
                 ed25519_dalek::SIGNATURE_LENGTH
             )
-        });
+        }
+        signature
+            .into_iter()
+            .enumerate()
+            .for_each(|(i, b)| sig_bytes[i] = b);
+        let sig = ed25519_dalek::Signature::from_bytes(&sig_bytes);
         public_key
             .verify(&message, &sig)
             .map(|_| true)
@@ -78,7 +90,7 @@ impl VerifierTrait for Ed25519Signer {
 mod tests {
     use crate::{Ed25519Signer, Signer, Verifier};
     use bytes::Bytes;
-    use ed25519_dalek::Keypair;
+    use ed25519_dalek::SigningKey;
 
     #[test]
     fn should_sign_and_verify() {
@@ -90,7 +102,7 @@ mod tests {
         let pub_key = signer.pub_key();
         assert!(Ed25519Signer::verify(pub_key, msg.clone(), sig).unwrap());
 
-        let keypair = Keypair::from_bytes(&[
+        let keypair = SigningKey::from_keypair_bytes(&[
             237, 158, 92, 107, 132, 192, 1, 57, 8, 20, 213, 108, 29, 227, 37, 8, 3, 105, 196, 244,
             8, 221, 184, 199, 62, 253, 98, 131, 33, 165, 165, 215, 14, 7, 46, 23, 221, 242, 240,
             226, 94, 79, 161, 31, 192, 163, 13, 25, 106, 53, 34, 215, 83, 124, 162, 156, 8, 97,

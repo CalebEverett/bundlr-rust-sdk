@@ -105,7 +105,7 @@ mod tests {
     #[test]
     #[cfg(feature = "solana")]
     fn test_x() {
-        let secret_key = "28PmkjeZqLyfRQogb3FU4E1vJh68dXpbojvS2tcPwezZmVQp8zs8ebGmYg1hNRcjX4DkUALf3SkZtytGWPG3vYhs";
+        let secret_key = "kNykCXNxgePDjFbDWjPNvXQRa8U12Ywc19dFVaQ7tebUj3m7H4sF4KKdJwM7yxxb3rqxchdjezX9Szh8bLcQAjb";
         let signer = Ed25519Signer::from_base58(secret_key);
         let data_item = BundlrTx::create_with_tags(
             Vec::from("hello"),
