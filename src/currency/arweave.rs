@@ -73,14 +73,10 @@ impl ArweaveBuilder {
 
         let sdk = match &self.keypair_path {
             // With signer
-            Some(keypair_path) => arweave_rs::ArweaveBuilder::new()
-                .base_url(base_url)
-                .keypair_path(keypair_path.clone())
-                .build()?,
+            Some(keypair_path) => arweave_rs::Arweave::from_keypair_path(keypair_path.clone(), base_url)?
+                ,
             // Without signer
-            None => arweave_rs::ArweaveBuilder::new()
-                .base_url(base_url)
-                .build()?,
+            None => arweave_rs::Arweave::default(),
         };
 
         let signer = match self.keypair_path {
@@ -205,7 +201,7 @@ impl Currency for Arweave {
                 "No private key present".to_string(),
             ));
         }
-        Ok(self.sdk.get_wallet_address()?)
+        Ok(self.sdk.get_wallet_address())
     }
 
     fn get_signer(&self) -> Result<&dyn Signer, BundlrError> {

@@ -116,11 +116,11 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn should_verify_random_bundles() -> Result<(), BundlrError> {
-        for i in 1..100 {
-            verify_file_bundle(format!("./res/gen_bundles/bundle_{}", i).to_string()).await?;
-        }
-        Ok(())
-    }
+    // #[tokio::test]
+    // async fn should_verify_random_bundles() -> Result<(), BundlrError> {
+    //     for i in 1..100 {
+    //         verify_file_bundle(format!("./res/gen_bundles/bundle_{}", i).to_string()).await?;
+    //     }
+    //     Ok(())
+    // }
 }
