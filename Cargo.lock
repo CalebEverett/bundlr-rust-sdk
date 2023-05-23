@@ -540,6 +540,7 @@ dependencies = [
  "tokio-util 0.6.10",
  "validator",
  "web3",
+ "zeroize",
 ]
 
 [[package]]
