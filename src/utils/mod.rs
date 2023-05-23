@@ -1,3 +1,10 @@
+#[cfg(any(feature = "ethereum", feature = "erc20"))]
+mod eip712;
+
+pub(crate) use eip712::hash_structured_data;
+pub(crate) use eip712::Eip712Error;
+pub(crate) use eip712::EIP712;
+
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
@@ -22,7 +29,7 @@ where
                 let text = r
                     .text()
                     .await
-                    .expect("Could not get error text")
+                    .map_err(|err| BundlrError::ParseError(err.to_string()))?
                     .replace('\"', "");
                 let msg = format!("Status: {}:{:?}", status, text);
                 return Err(BundlrError::ResponseError(msg));
@@ -45,7 +52,7 @@ pub async fn get_nonce(
                 "/account/withdrawals/{}?address={}",
                 currency, address
             ))
-            .expect("Could not join url with /account/withdrawals/{}?address={}"),
+            .map_err(|err| BundlrError::ParseError(err.to_string()))?,
         )
         .send()
         .await;

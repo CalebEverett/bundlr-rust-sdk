@@ -13,7 +13,7 @@ impl From<std::io::Error> for BundlrError {
 }
 
 pub async fn verify_file_bundle(filename: String) -> Result<Vec<Item>, BundlrError> {
-    let mut file = File::open(&filename).unwrap();
+    let mut file = File::open(&filename)?;
 
     let bundle_length = U256::from_little_endian(&read_offset(&mut file, 0, 32)?).as_u64();
 
@@ -22,7 +22,11 @@ pub async fn verify_file_bundle(filename: String) -> Result<Vec<Item>, BundlrErr
     // This will use ~100 bytes per header. So 1 GB is 1e+7 headers
     let mut headers = Vec::with_capacity(cmp::min(bundle_length as usize, 1000));
 
-    for i in (0..(64 * usize::try_from(bundle_length).unwrap())).step_by(64) {
+    for i in (0..(64
+        * usize::try_from(bundle_length)
+            .map_err(|err| BundlrError::TypeParseError(err.to_string()))?))
+        .step_by(64)
+    {
         let h = Header(
             U256::from_little_endian(&header_bytes[i..i + 32]).as_u64(),
             BASE64URL.encode(&header_bytes[i + 32..i + 64]),
@@ -36,11 +40,10 @@ pub async fn verify_file_bundle(filename: String) -> Result<Vec<Item>, BundlrErr
     for Header(size, id) in headers {
         // Read 4 KiB - max data-less Bundlr tx
         // We do it all at once to improve performance - by lowering fs ops and doing ops in memory
-        let mut tx = BundlrTx::from_file_position(&mut file, size, offset, 4096)
-            .expect("Could not create data item");
+        let mut tx = BundlrTx::from_file_position(&mut file, size, offset, 4096)?;
 
         match tx.verify().await {
-            Err(_) => return Err(BundlrError::InvalidSignature),
+            Err(err) => return Err(err),
             Ok(_) => {
                 let sig = tx.get_signarure();
                 let item = Item {
@@ -58,116 +61,66 @@ pub async fn verify_file_bundle(filename: String) -> Result<Vec<Item>, BundlrErr
 
 #[cfg(test)]
 mod tests {
+    use crate::error::BundlrError;
+
     use super::verify_file_bundle;
 
-    macro_rules! aw {
-        ($e:expr) => {
-            tokio_test::block_on($e).unwrap()
-        };
+    #[tokio::test]
+    async fn should_verify_test_bundle() -> Result<(), BundlrError> {
+        verify_file_bundle("./res/test_bundles/test_bundle".to_string())
+            .await
+            .map(|_| ())
     }
 
-    #[test]
-    fn should_verify_test_bundle() {
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/test_bundle".to_string()
-            ))
-        );
+    #[tokio::test]
+    async fn should_verify_arweave() -> Result<(), BundlrError> {
+        verify_file_bundle("./res/test_bundles/arweave_sig".to_string())
+            .await
+            .map(|_| ())
     }
 
-    #[test]
-    fn should_verify_arweave() {
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/arweave_sig".to_string()
-            ))
-        );
+    #[tokio::test]
+    async fn should_verify_secp256k1() -> Result<(), BundlrError> {
+        verify_file_bundle("./res/test_bundles/ethereum_sig".to_string()).await?;
+        verify_file_bundle("./res/test_bundles/typedethereum_sig".to_string()).await?;
+        verify_file_bundle("./res/test_bundles/arbitrum_sig".to_string()).await?;
+        verify_file_bundle("./res/test_bundles/avalanche_sig".to_string()).await?;
+        verify_file_bundle("./res/test_bundles/bnb_sig".to_string()).await?;
+        verify_file_bundle("./res/test_bundles/boba-eth_sig".to_string()).await?;
+        verify_file_bundle("./res/test_bundles/chainlink_sig".to_string()).await?;
+        verify_file_bundle("./res/test_bundles/kyve_sig".to_string()).await?;
+        verify_file_bundle("./res/test_bundles/matic_sig".to_string()).await?;
+        Ok(())
     }
 
-    #[test]
-    #[cfg(any(feature = "ethereum", feature = "erc20"))]
-    fn should_verify_secp256k1() {
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/ethereum_sig".to_string()
-            ))
-        );
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/arbitrum_sig".to_string()
-            ))
-        );
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/avalanche_sig".to_string()
-            ))
-        );
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle("./res/test_bundles/bnb_sig".to_string()))
-        );
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/boba-eth_sig".to_string()
-            ))
-        );
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/chainlink_sig".to_string()
-            ))
-        );
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/kyve_sig".to_string()
-            ))
-        );
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/matic_sig".to_string()
-            ))
-        );
-    }
-
-    #[test]
+    /*
+    #[tokio::test]
     #[cfg(feature = "cosmos")]
-    fn should_verify_cosmos() {
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/cosmos_sig".to_string()
-            ))
+    async fn should_verify_cosmos() {
+        //TODO: update cosmos signed transaction when its constant is defined
+        assert!(
+            verify_file_bundle("./res/test_bundles/cosmos_sig".to_string())
+            .await
+            .is_ok()
         );
     }
+    */
 
-    #[test]
-    #[cfg(any(feature = "solana", feature = "algorand"))]
-    fn should_verify_ed25519() {
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/solana_sig".to_string()
-            ))
-        );
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/algorand_sig".to_string()
-            ))
-        );
-        println!(
-            "{:?}",
-            aw!(verify_file_bundle(
-                "./res/test_bundles/near_sig".to_string()
-            ))
-        );
+    #[tokio::test]
+    async fn should_verify_ed25519() -> Result<(), BundlrError> {
+        verify_file_bundle("./res/test_bundles/solana_sig".to_string()).await?;
+        verify_file_bundle("./res/test_bundles/algorand_sig".to_string()).await?;
+        verify_file_bundle("./res/test_bundles/near_sig".to_string()).await?;
+        verify_file_bundle("./res/test_bundles/aptos_sig".to_string()).await?;
+        verify_file_bundle("./res/test_bundles/aptos_multisig".to_string()).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn should_verify_random_bundles() -> Result<(), BundlrError> {
+        for i in 1..100 {
+            verify_file_bundle(format!("./res/gen_bundles/bundle_{}", i).to_string()).await?;
+        }
+        Ok(())
     }
 }

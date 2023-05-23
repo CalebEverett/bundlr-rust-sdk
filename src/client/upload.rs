@@ -6,11 +6,16 @@ use std::{
 };
 
 use crate::{
+    bundlr::BundlrBuilder,
     consts::VERSION,
-    currency::{arweave::Arweave, ethereum::Ethereum, solana::Solana, Currency, CurrencyType},
+    currency::{
+        arweave::{Arweave, ArweaveBuilder},
+        ethereum::{Ethereum, EthereumBuilder},
+        solana::{Solana, SolanaBuilder},
+        CurrencyType,
+    },
     error::BundlrError,
     tags::Tag,
-    Bundlr,
 };
 use reqwest::Url;
 
@@ -20,16 +25,6 @@ pub async fn run_upload(
     wallet: &str,
     currency: CurrencyType,
 ) -> Result<String, BundlrError> {
-    let currency: Box<dyn Currency> = match currency {
-        CurrencyType::Arweave => {
-            let wallet = PathBuf::from_str(&wallet).expect("Invalid wallet path");
-            Box::new(Arweave::new(wallet, None))
-        }
-        CurrencyType::Solana => Box::new(Solana::new(wallet, None)),
-        CurrencyType::Ethereum => Box::new(Ethereum::new(wallet, None)),
-        CurrencyType::Erc20 => todo!(),
-        CurrencyType::Cosmos => todo!(),
-    };
     let f = File::open(file_path.clone()).expect("Invalid file path");
     let mut reader = BufReader::new(f);
     let mut buffer = Vec::new();
@@ -39,13 +34,58 @@ pub async fn run_upload(
 
     let base_tag = Tag::new("User-Agent", &format!("bundlr-sdk-rs/{}", VERSION));
 
-    // Read.
-    let bundlr = Bundlr::new(url, currency.as_ref()).await;
-    let mut tx = bundlr.create_transaction(buffer, vec![base_tag]);
-    let sig = bundlr.sign_transaction(&mut tx).await;
-    assert!(sig.is_ok());
-    match bundlr.send_transaction(tx).await {
-        Ok(res) => Ok(format!("File {} uploaded: {}", file_path, res.to_string())),
-        Err(err) => Err(BundlrError::UploadError(err.to_string())),
+    match currency {
+        CurrencyType::Arweave => {
+            let wallet = PathBuf::from_str(&wallet)
+                .map_err(|err| BundlrError::ParseError(err.to_string()))?;
+            let currency = ArweaveBuilder::new().keypair_path(wallet).build()?;
+            let bundlr = BundlrBuilder::<Arweave>::new()
+                .url(url)
+                .currency(currency)
+                .fetch_pub_info()
+                .await?
+                .build()?;
+            let mut tx = bundlr.create_transaction(buffer, vec![base_tag])?;
+            let sig = bundlr.sign_transaction(&mut tx).await;
+            assert!(sig.is_ok());
+            match bundlr.send_transaction(tx).await {
+                Ok(res) => Ok(format!("File {} uploaded: {}", file_path, res.to_string())),
+                Err(err) => Err(BundlrError::UploadError(err.to_string())),
+            }
+        }
+        CurrencyType::Solana => {
+            let currency = SolanaBuilder::new().wallet(wallet).build()?;
+            let bundlr = BundlrBuilder::<Solana>::new()
+                .url(url)
+                .currency(currency)
+                .fetch_pub_info()
+                .await?
+                .build()?;
+            let mut tx = bundlr.create_transaction(buffer, vec![base_tag])?;
+            let sig = bundlr.sign_transaction(&mut tx).await;
+            assert!(sig.is_ok());
+            match bundlr.send_transaction(tx).await {
+                Ok(res) => Ok(format!("File {} uploaded: {}", file_path, res.to_string())),
+                Err(err) => Err(BundlrError::UploadError(err.to_string())),
+            }
+        }
+        CurrencyType::Ethereum => {
+            let currency = EthereumBuilder::new().wallet(wallet).build()?;
+            let bundlr = BundlrBuilder::<Ethereum>::new()
+                .url(url)
+                .currency(currency)
+                .fetch_pub_info()
+                .await?
+                .build()?;
+            let mut tx = bundlr.create_transaction(buffer, vec![base_tag])?;
+            let sig = bundlr.sign_transaction(&mut tx).await;
+            assert!(sig.is_ok());
+            match bundlr.send_transaction(tx).await {
+                Ok(res) => Ok(format!("File {} uploaded: {}", file_path, res.to_string())),
+                Err(err) => Err(BundlrError::UploadError(err.to_string())),
+            }
+        }
+        CurrencyType::Erc20 => todo!(),
+        CurrencyType::Cosmos => todo!(),
     }
 }
