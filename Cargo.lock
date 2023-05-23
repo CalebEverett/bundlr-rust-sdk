@@ -52,7 +52,7 @@ checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 [[package]]
 name = "arweave-rs"
 version = "0.1.1"
-source = "git+https://github.com/CalebEverett/arweave-rs#02e6f3a3b70c209544889d8cee77606551353f93"
+source = "git+https://github.com/CalebEverett/arweave-rs#bb34b83e530df35efd5fe2c2c3cacae1c57f9e9c"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -3368,9 +3368,9 @@ checksum = "5a76a9312f5ba4c2dec6b9161fdf25d87ad8a09256ccea5a556fef03c706a10f"
 
 [[package]]
 name = "toml_edit"
-version = "0.19.9"
+version = "0.19.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92d964908cec0d030b812013af25a0e57fddfadb1e066ecc6681d86253129d4f"
+checksum = "2380d56e8670370eee6566b0bfd4265f65b3f432e8c6d85623f728d4fa31f739"
 dependencies = [
  "indexmap",
  "toml_datetime",
