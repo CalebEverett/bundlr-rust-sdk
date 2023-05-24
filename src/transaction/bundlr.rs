@@ -21,6 +21,8 @@ enum Data {
     Stream(Pin<Box<dyn Stream<Item = anyhow::Result<Bytes>>>>),
 }
 
+unsafe impl Send for Data {}
+unsafe impl Sync for Data {}
 pub struct BundlrTx {
     signature_type: SignerMap,
     signature: Vec<u8>,
