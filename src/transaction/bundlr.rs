@@ -18,7 +18,7 @@ use crate::utils::read_offset;
 enum Data {
     None,
     Bytes(Vec<u8>),
-    Stream(Pin<Box<dyn Stream<Item = anyhow::Result<Bytes>>>>),
+    // Stream(Pin<Box<dyn Stream<Item = anyhow::Result<Bytes>>>>),
 }
 
 unsafe impl Send for Data {}
@@ -143,33 +143,33 @@ impl BundlrTx {
         })
     }
 
-    pub fn from_file_position(
-        file: &mut File,
-        size: u64,
-        offset: u64,
-        length: usize,
-    ) -> Result<Self, BundlrError> {
-        let buffer = read_offset(file, offset, length).map_err(BundlrError::IoError)?;
-        let (bundlr_tx, data_start) = BundlrTx::from_info_bytes(&buffer)?;
+    // pub fn from_file_position(
+    //     file: &mut File,
+    //     size: u64,
+    //     offset: u64,
+    //     length: usize,
+    // ) -> Result<Self, BundlrError> {
+    //     let buffer = read_offset(file, offset, length).map_err(BundlrError::IoError)?;
+    //     let (bundlr_tx, data_start) = BundlrTx::from_info_bytes(&buffer)?;
 
-        let data_start = data_start as u64;
-        let data_size = size - data_start;
-        let mut file_clone = file.try_clone()?;
-        let file_stream = try_stream! {
-            let chunk_size = CHUNK_SIZE;
-            let mut read = 0;
-            while read < data_size {
-                let b = read_offset(&mut file_clone, offset + data_start + read, cmp::min(data_size - read, chunk_size) as usize)?;
-                read += b.len() as u64;
-                yield b;
-            };
-        };
+    //     let data_start = data_start as u64;
+    //     let data_size = size - data_start;
+    //     let mut file_clone = file.try_clone()?;
+    //     let file_stream = try_stream! {
+    //         let chunk_size = CHUNK_SIZE;
+    //         let mut read = 0;
+    //         while read < data_size {
+    //             let b = read_offset(&mut file_clone, offset + data_start + read, cmp::min(data_size - read, chunk_size) as usize)?;
+    //             read += b.len() as u64;
+    //             yield b;
+    //         };
+    //     };
 
-        Ok(BundlrTx {
-            data: Data::Stream(Box::pin(file_stream)),
-            ..bundlr_tx
-        })
-    }
+    //     Ok(BundlrTx {
+    //         data: Data::Stream(Box::pin(file_stream)),
+    //         ..bundlr_tx
+    //     })
+    // }
 
     pub fn is_signed(&self) -> bool {
         !self.signature.is_empty() && self.signature_type != SignerMap::None
@@ -180,7 +180,7 @@ impl BundlrTx {
             return Err(BundlrError::NoSignature);
         }
         let data = match &self.data {
-            Data::Stream(_) => return Err(BundlrError::InvalidDataType),
+            // Data::Stream(_) => return Err(BundlrError::InvalidDataType),
             Data::None => return Err(BundlrError::InvalidDataType),
             Data::Bytes(data) => data,
         };
@@ -263,23 +263,22 @@ impl BundlrTx {
                     DeepHashChunk::Chunk(encoded_tags.clone()),
                     data_chunk,
                 ]))
-            }
-            Data::Stream(file_stream) => {
-                let data_chunk = DeepHashChunk::Stream(file_stream);
-                let sig_type = &self.signature_type;
-                let sig_type_bytes = sig_type.as_u16().to_string().as_bytes().to_vec();
-                deep_hash(DeepHashChunk::Chunks(vec![
-                    DeepHashChunk::Chunk(DATAITEM_AS_BUFFER.into()),
-                    DeepHashChunk::Chunk(ONE_AS_BUFFER.into()),
-                    DeepHashChunk::Chunk(sig_type_bytes.to_vec().into()),
-                    DeepHashChunk::Chunk(self.owner.to_vec().into()),
-                    DeepHashChunk::Chunk(self.target.to_vec().into()),
-                    DeepHashChunk::Chunk(self.anchor.to_vec().into()),
-                    DeepHashChunk::Chunk(encoded_tags.clone()),
-                    data_chunk,
-                ]))
-                .await
-            }
+            } // Data::Stream(file_stream) => {
+              //     let data_chunk = DeepHashChunk::Stream(file_stream);
+              //     let sig_type = &self.signature_type;
+              //     let sig_type_bytes = sig_type.as_u16().to_string().as_bytes().to_vec();
+              //     deep_hash(DeepHashChunk::Chunks(vec![
+              //         DeepHashChunk::Chunk(DATAITEM_AS_BUFFER.into()),
+              //         DeepHashChunk::Chunk(ONE_AS_BUFFER.into()),
+              //         DeepHashChunk::Chunk(sig_type_bytes.to_vec().into()),
+              //         DeepHashChunk::Chunk(self.owner.to_vec().into()),
+              //         DeepHashChunk::Chunk(self.target.to_vec().into()),
+              //         DeepHashChunk::Chunk(self.anchor.to_vec().into()),
+              //         DeepHashChunk::Chunk(encoded_tags.clone()),
+              //         data_chunk,
+              //     ]))
+              //     .await
+              // }
         }
     }
 
