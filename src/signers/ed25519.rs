@@ -12,6 +12,9 @@ pub struct Ed25519Signer {
     keypair: Keypair,
 }
 
+unsafe impl Send for Ed25519Signer {}
+unsafe impl Sync for Ed25519Signer {}
+
 //TODO: add validation for secret keys
 impl Ed25519Signer {
     pub fn new(keypair: Keypair) -> Ed25519Signer {
