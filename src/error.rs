@@ -111,6 +111,9 @@ pub enum BundlrError {
     RecoveryError(RecoveryError),
 }
 
+unsafe impl Send for BundlrError {}
+unsafe impl Sync for BundlrError {}
+
 impl From<BuilderError> for BundlrError {
     fn from(value: BuilderError) -> Self {
         Self::BuilderError(value)
