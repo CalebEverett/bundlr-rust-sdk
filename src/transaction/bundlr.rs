@@ -31,6 +31,9 @@ pub struct BundlrTx {
     data: Data,
 }
 
+unsafe impl Send for BundlrTx {}
+unsafe impl Sync for BundlrTx {}
+
 impl BundlrTx {
     pub fn new(target: Vec<u8>, data: Vec<u8>, tags: Vec<Tag>) -> Result<Self, BundlrError> {
         let mut randoms: [u8; 32] = [0; 32];
